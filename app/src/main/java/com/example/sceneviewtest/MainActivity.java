@@ -53,7 +53,7 @@ public class MainActivity extends AppCompatActivity {
                             result = new JSONObject(response);
                             HashMap allData = new Gson().fromJson(result.toString(), HashMap.class);
                             ArrayList paths = (ArrayList) allData.get("paths");
-                            conversions = (Conversion) allData.get("conversions");
+                            conversions = new Gson().fromJson(allData.get("conversions").toString(), Conversion.class);
 
                             for (Object coordinate: paths) {
                                 Path path = new Gson().fromJson(coordinate.toString(), Path.class);
@@ -69,25 +69,25 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                 }, new Response.ErrorListener() {
-            @Override
-            public void onErrorResponse(VolleyError error) {
-                Log.d(TAG, "Failed with error msg:\t" + error.getMessage());
-                Log.d(TAG, "Error StackTrace: \t" + error.getStackTrace());
-                try {
-                    byte[] htmlBodyBytes = error.networkResponse.data;
-                    Log.e(TAG, new String(htmlBodyBytes), error);
-                } catch (NullPointerException e) {
-                    e.printStackTrace();
-                }
-            }
-        }) {@Override
-            public Map<String, String> getParams() {
-                Map<String, String> params = new HashMap<>();
-                params.put("start_location", "1");
-                params.put("end_location", "3");
-                return params;
-            }
-        };
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        Log.d(TAG, "Failed with error msg:\t" + error.getMessage());
+                        Log.d(TAG, "Error StackTrace: \t" + error.getStackTrace());
+                        try {
+                            byte[] htmlBodyBytes = error.networkResponse.data;
+                            Log.e(TAG, new String(htmlBodyBytes), error);
+                        } catch (NullPointerException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }) {@Override
+                    public Map<String, String> getParams() {
+                        Map<String, String> params = new HashMap<>();
+                        params.put("start_location", "1");
+                        params.put("end_location", "3");
+                        return params;
+                    }
+                };
 
         // Add the request to the RequestQueue.
         queue.add(stringRequest);

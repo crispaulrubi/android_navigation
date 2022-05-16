@@ -4,40 +4,50 @@ import java.io.Serializable;
 
 public class Conversion implements Serializable {
 
-    private String unitOne;
-    private float valueOne;
-    private String unitTwo;
-    private float valueTwo;
+    private String unit_one;
+    private float value_one;
+    private String unit_two;
+    private float value_two;
 
-    public String getUnitOne() {
-        return unitOne;
+    public String getUnit_one() {
+        return unit_one;
     }
 
-    public void setUnitOne(String unitOne) {
-        this.unitOne = unitOne;
+    public void setUnit_one(String unit_one) {
+        this.unit_one = unit_one;
     }
 
-    public float getValueOne() {
-        return valueOne;
+    public float getValue_one() {
+        return value_one;
     }
 
-    public void setValueOne(float valueOne) {
-        this.valueOne = valueOne;
+    public void setValue_one(float value_one) {
+        this.value_one = value_one;
     }
 
-    public String getUnitTwo() {
-        return unitTwo;
+    public String getUnit_two() {
+        return unit_two;
     }
 
-    public void setUnitTwo(String unitTwo) {
-        this.unitTwo = unitTwo;
+    public void setUnit_two(String unit_two) {
+        this.unit_two = unit_two;
     }
 
-    public float getValueTwo() {
-        return valueTwo;
+    public float getValue_two() {
+        return value_two;
     }
 
-    public void setValueTwo(float valueTwo) {
-        this.valueTwo = valueTwo;
+    public void setValue_two(float value_two) {
+        this.value_two = value_two;
+    }
+
+    @Override
+    public String toString() {
+        return "Conversion{" +
+                "unit_one='" + unit_one + '\'' +
+                ", value_one=" + value_one +
+                ", unit_two='" + unit_two + '\'' +
+                ", value_two=" + value_two +
+                '}';
     }
 }

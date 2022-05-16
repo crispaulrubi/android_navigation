@@ -1,18 +1,20 @@
 package com.example.sceneviewtest;
 
-public class Path {
+import java.io.Serializable;
+
+public class Path implements Serializable {
 
     protected String start;
     protected String end;
     protected int id;
-    protected int mapID;
-    protected String uniquePathID;
-    protected int startLocation;
-    protected int endLocation;
-    protected float xCoord;
-    protected float yCoord;
-    protected int coordOrder;
-    protected boolean isDeleted;
+    protected int map_id;
+    protected String unique_path_id;
+    protected int start_location;
+    protected int end_location;
+    protected float x_coord;
+    protected float y_coord;
+    protected int coord_order;
+    protected int is_deleted;
 
     public String getStart() {
         return start;
@@ -38,67 +40,75 @@ public class Path {
         this.id = id;
     }
 
-    public int getMapID() {
-        return mapID;
+    public int getMap_id() {
+        return map_id;
     }
 
-    public void setMapID(int mapID) {
-        this.mapID = mapID;
+    public void setMap_id(int map_id) {
+        this.map_id = map_id;
     }
 
-    public String getUniquePathID() {
-        return uniquePathID;
+    public String getUnique_path_id() {
+        return unique_path_id;
     }
 
-    public void setUniquePathID(String uniquePathID) {
-        this.uniquePathID = uniquePathID;
+    public void setUnique_path_id(String unique_path_id) {
+        this.unique_path_id = unique_path_id;
     }
 
-    public int getStartLocation() {
-        return startLocation;
+    public int getStart_location() {
+        return start_location;
     }
 
-    public void setStartLocation(int startLocation) {
-        this.startLocation = startLocation;
+    public void setStart_location(int start_location) {
+        this.start_location = start_location;
     }
 
-    public int getEndLocation() {
-        return endLocation;
+    public int getEnd_location() {
+        return end_location;
     }
 
-    public void setEndLocation(int endLocation) {
-        this.endLocation = endLocation;
+    public void setEnd_location(int end_location) {
+        this.end_location = end_location;
     }
 
-    public float getxCoord() {
-        return xCoord;
+    public float getX_coord() {
+        return x_coord;
     }
 
-    public void setxCoord(float xCoord) {
-        this.xCoord = xCoord;
+    public void setX_coord(float x_coord) {
+        this.x_coord = x_coord;
     }
 
-    public float getyCoord() {
-        return yCoord;
+    public float getY_coord() {
+        return y_coord;
     }
 
-    public void setyCoord(float yCoord) {
-        this.yCoord = yCoord;
+    public void setY_coord(float y_coord) {
+        this.y_coord = y_coord;
     }
 
-    public int getCoordOrder() {
-        return coordOrder;
+    public int getCoord_order() {
+        return coord_order;
     }
 
-    public void setCoordOrder(int coordOrder) {
-        this.coordOrder = coordOrder;
+    public void setCoord_order(int coord_order) {
+        this.coord_order = coord_order;
     }
 
-    public boolean isDeleted() {
-        return isDeleted;
-    }
-
-    public void setDeleted(boolean deleted) {
-        isDeleted = deleted;
+    @Override
+    public String toString() {
+        return "Path{" +
+                "start='" + start + '\'' +
+                ", end='" + end + '\'' +
+                ", id=" + id +
+                ", map_id=" + map_id +
+                ", unique_path_id='" + unique_path_id + '\'' +
+                ", start_location=" + start_location +
+                ", end_location=" + end_location +
+                ", x_coord=" + x_coord +
+                ", y_coord=" + y_coord +
+                ", coord_order=" + coord_order +
+                '}';
     }
 }
