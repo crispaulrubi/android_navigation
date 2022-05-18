@@ -13,32 +13,16 @@ public class Conversion implements Serializable {
         return unit_one;
     }
 
-    public void setUnit_one(String unit_one) {
-        this.unit_one = unit_one;
-    }
-
     public float getValue_one() {
         return value_one;
-    }
-
-    public void setValue_one(float value_one) {
-        this.value_one = value_one;
     }
 
     public String getUnit_two() {
         return unit_two;
     }
 
-    public void setUnit_two(String unit_two) {
-        this.unit_two = unit_two;
-    }
-
     public float getValue_two() {
         return value_two;
-    }
-
-    public void setValue_two(float value_two) {
-        this.value_two = value_two;
     }
 
     @Override
