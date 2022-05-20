@@ -6,7 +6,7 @@ public class Location implements Serializable {
     private int id;
     private int map_id;
     private String name;
-    private String code;
+    private String path;
     private float x_coord;
     private float y_coord;
     private int is_deleted;
@@ -23,8 +23,8 @@ public class Location implements Serializable {
         return name;
     }
 
-    public String getCode() {
-        return code;
+    public String getPath() {
+        return path;
     }
 
     public float getX_coord() {
@@ -40,12 +40,12 @@ public class Location implements Serializable {
     }
 
 //    @Override
-//    public String toString() {
+//    public String toString() {`
 //        return "Location{" +
 //                "id=" + id +
 //                ", map_id=" + map_id +
 //                ", name='" + name + '\'' +
-//                ", code='" + code + '\'' +
+//                ", path='" + path + '\'' +
 //                ", x_coord=" + x_coord +
 //                ", y_coord=" + y_coord +
 //                ", is_deleted=" + is_deleted +
