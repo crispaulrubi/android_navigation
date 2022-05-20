@@ -32,7 +32,7 @@ import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
-    private final String TAG = "NOTICE: ";
+    private final String TAG = "NOTICE";
     private ArrayList<Path> generatedPath;
     private Conversion conversions;
 
@@ -72,7 +72,6 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
                     Location location = (Location) adapterView.getItemAtPosition(i);
-                    Log.d(TAG, location.toString());
                 }
 
                 @Override
@@ -115,7 +114,8 @@ public class MainActivity extends AppCompatActivity {
     private void startSceneform() {
         Intent intent = new Intent(MainActivity.this, Sceneview.class);
         Bundle args = new Bundle();
-        args.putSerializable("ARRAYLIST", (Serializable) generatedPath);
+        args.putSerializable("PATHS_ARRAY", (Serializable) generatedPath);
+        args.putSerializable("LOCATIONS_ARRAY", (Serializable) locations);
         intent.putExtra("PATHS", args);
 
         if (conversions != null) {

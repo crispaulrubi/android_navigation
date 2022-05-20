@@ -1,6 +1,9 @@
 package com.example.sceneviewtest;
 
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -14,17 +17,13 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentOnAttachListener;
 
-import com.android.volley.RequestQueue;
-import com.android.volley.toolbox.Volley;
-import com.google.ar.core.Anchor;
+import com.google.ar.core.AugmentedImage;
+import com.google.ar.core.AugmentedImageDatabase;
 import com.google.ar.core.Config;
-import com.google.ar.core.HitResult;
-import com.google.ar.core.Plane;
 import com.google.ar.core.Session;
+import com.google.ar.core.TrackingState;
 import com.google.ar.sceneform.AnchorNode;
-import com.google.ar.sceneform.ArSceneView;
 import com.google.ar.sceneform.Camera;
-import com.google.ar.sceneform.SceneView;
 import com.google.ar.sceneform.Sceneform;
 import com.google.ar.sceneform.math.Quaternion;
 import com.google.ar.sceneform.math.Vector3;
@@ -33,6 +32,7 @@ import com.google.ar.sceneform.rendering.Renderable;
 import com.google.ar.sceneform.rendering.ViewRenderable;
 import com.google.ar.sceneform.ux.ArFragment;
 import com.google.ar.sceneform.ux.BaseArFragment;
+import com.google.ar.sceneform.ux.InstructionsController;
 import com.google.ar.sceneform.ux.TransformableNode;
 
 import java.lang.ref.WeakReference;
@@ -43,14 +43,16 @@ import java.util.Map;
 
 public class Sceneview extends AppCompatActivity implements
         FragmentOnAttachListener,
-        BaseArFragment.OnTapArPlaneListener,
-        BaseArFragment.OnSessionConfigurationListener,
-        ArFragment.OnViewCreatedListener{
+        BaseArFragment.OnSessionConfigurationListener {
 
-    private final String TAG = "NOTICE: ";
+    private final String TAG = "NOTICE";
     private final Map<String, Float> directionAngles = new HashMap<>();
 
+    private boolean rabbitDetected = false;
+    private AugmentedImageDatabase database;
+
     private ArrayList<Path> paths;
+    private ArrayList<Location> locations;
     private Conversion conversions;
     private Path currentPosition;
     private String currentDirection;
@@ -77,11 +79,13 @@ public class Sceneview extends AppCompatActivity implements
 
         Intent intent = getIntent();
         Bundle args = intent.getBundleExtra("PATHS");
-        paths = (ArrayList<Path>) args.getSerializable("ARRAYLIST");
+        paths = (ArrayList<Path>) args.getSerializable("PATHS_ARRAY");
         if (paths.size() > 0) {
             currentPosition = paths.get(0);
             paths.remove(0);
         }
+
+        locations = (ArrayList<Location>) args.getSerializable("LOCATIONS_ARRAY");
 
         populateDirectionAngles();
         updateCurrentDirection();
@@ -99,50 +103,6 @@ public class Sceneview extends AppCompatActivity implements
     @Override
     protected void onResume() {
         super.onResume();
-
-        vector.set(0, -1f,-1f);
-
-        arFragment.getArSceneView().getScene().addOnUpdateListener(frameTime -> {
-            if (counter == 0) {
-                parentNode = new AnchorNode();
-                parentNode.setParent(arFragment.getArSceneView().getScene());
-                parentNode.setWorldPosition(new Vector3(0, 0, 0));
-
-                node = new TransformableNode(arFragment.getTransformationSystem());
-                node.setRenderable(this.model);
-                node.getScaleController().setMinScale(0.0f);
-                node.getScaleController().setMaxScale(3.0f);
-                node.setLocalScale(new Vector3(0.05f, 0.05f, 0.05f));
-
-                Float currentAngle = directionAngles.get(currentDirection);
-                node.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1, 0), currentAngle == null ? 180.0f : currentAngle));
-
-                node.setParent(parentNode);
-                node.setWorldPosition(vector);
-
-                oldPositions.add(camera.getLocalPosition());
-            }
-
-            if (counter % 10 == 0) {
-                arrowCoordinates.setText(node.getWorldPosition().toString());
-
-                if (hasMoved(oldPositions.get(oldPositions.size()-1), camera.getLocalPosition(), node.getWorldPosition())) {
-                    if (paths.size() > 0) {
-                        currentPosition = paths.get(0);
-                        paths.remove(0);
-                        updateCurrentDirection();
-                        adjustDirectionAngles();
-
-                        Vector3 oldNodePosition = node.getWorldPosition();
-                        removeOldArrow();
-                        createNewArrow(oldNodePosition);
-                    } else {
-                        Log.d(TAG, "Arrived!! Hooray!!");
-                    }
-                }
-            }
-            counter++;
-        });
 
         camera = arFragment.getArSceneView().getScene().getCamera();
     }
@@ -282,8 +242,6 @@ public class Sceneview extends AppCompatActivity implements
         if (fragment.getId() == R.id.arFragment) {
             arFragment = (ArFragment) fragment;
             arFragment.setOnSessionConfigurationListener(this);
-            arFragment.setOnViewCreatedListener(this);
-            arFragment.setOnTapArPlaneListener(this);
         }
     }
 
@@ -292,14 +250,94 @@ public class Sceneview extends AppCompatActivity implements
         if (session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)) {
             config.setDepthMode(Config.DepthMode.AUTOMATIC);
         }
+        // Disable plane detection
+        config.setPlaneFindingMode(Config.PlaneFindingMode.DISABLED);
+
+        // Images to be detected by our AR need to be added in AugmentedImageDatabase
+        // This is how database is created at runtime
+        // You can also prebuild database in you computer and load it directly (see: https://developers.google.com/ar/develop/java/augmented-images/guide#database)
+
+        database = new AugmentedImageDatabase(session);
+
+        Bitmap rabbitImage = BitmapFactory.decodeResource(getResources(), R.drawable.rabbit);
+        // Every image has to have its own unique String identifier
+        database.addImage("rabbit", rabbitImage);
+
+        config.setAugmentedImageDatabase(database);
+
+        // Check for image detection
+        arFragment.setOnAugmentedImageUpdateListener(this::onAugmentedImageTrackingUpdate);
     }
 
-    @Override
-    public void onViewCreated(ArSceneView arSceneView) {
-        arFragment.setOnViewCreatedListener(null);
+    public void onAugmentedImageTrackingUpdate(AugmentedImage augmentedImage) {
+        // If there are both images already detected, for better CPU usage we do not need scan for them
+        counter++;
 
-        // Fine adjust the maximum frame rate
-        arSceneView.setFrameRateFactor(SceneView.FrameRate.FULL);
+        if (rabbitDetected && counter % 10 == 0) {
+            arrowCoordinates.setText(node.getWorldPosition().toString());
+
+//            if (hasMoved(oldPositions.get(oldPositions.size()-1), camera.getLocalPosition(), node.getWorldPosition())) {
+//                if (paths.size() > 0) {
+//                    currentPosition = paths.get(0);
+//                    paths.remove(0);
+//                    updateCurrentDirection();
+//                    adjustDirectionAngles();
+//
+//                    Vector3 oldNodePosition = node.getWorldPosition();
+//                    removeOldArrow();
+//                    createNewArrow(oldNodePosition);
+//                } else {
+//                    Log.d(TAG, "Arrived!! Hooray!!");
+//                }
+//            }
+        }
+
+
+        if (augmentedImage.getTrackingState() == TrackingState.TRACKING
+                && augmentedImage.getTrackingMethod() == AugmentedImage.TrackingMethod.FULL_TRACKING) {
+
+            // Setting anchor to the center of Augmented Image
+            AnchorNode anchorNode = new AnchorNode(augmentedImage.createAnchor(augmentedImage.getCenterPose()));
+
+            // If rabbit model haven't been placed yet and detected image has String identifier of "rabbit"
+            // This is also example of model loading and placing at runtime
+            if (!rabbitDetected && augmentedImage.getName().equals("rabbit")) {
+                rabbitDetected = true;
+                Toast.makeText(this, "Rabbit tag detected", Toast.LENGTH_LONG).show();
+
+                anchorNode.setWorldScale(new Vector3(0.01f, 0.01f, 0.01f));
+                arFragment.getArSceneView().getScene().addChild(anchorNode);
+
+                node = new TransformableNode(arFragment.getTransformationSystem());
+                node.setRenderable(this.model);
+                node.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1, 0), 90.0f));
+                anchorNode.addChild(node);
+
+//                vector.set(0, -1f,-1f);
+//
+//                parentNode = new AnchorNode();
+//                parentNode.setParent(arFragment.getArSceneView().getScene());
+//                parentNode.setWorldPosition(new Vector3(0, 0, 0));
+//
+//                node = new TransformableNode(arFragment.getTransformationSystem());
+//                node.setRenderable(this.model);
+//                node.getScaleController().setMinScale(0.0f);
+//                node.getScaleController().setMaxScale(3.0f);
+//                node.setLocalScale(new Vector3(0.05f, 0.05f, 0.05f));
+//
+                Float currentAngle = directionAngles.get(currentDirection);
+//                node.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1, 0), currentAngle == null ? 180.0f : currentAngle));
+//
+//                node.setParent(parentNode);
+//                node.setWorldPosition(vector);
+
+                oldPositions.add(camera.getLocalPosition());
+            }
+        }
+        if (rabbitDetected) {
+            arFragment.getInstructionsController().setEnabled(
+                    InstructionsController.TYPE_AUGMENTED_IMAGE_SCAN, false);
+        }
     }
 
     public void loadModels() {
@@ -333,28 +371,5 @@ public class Sceneview extends AppCompatActivity implements
                     Toast.makeText(this, "Unable to load model", Toast.LENGTH_LONG).show();
                     return null;
                 });
-
-        Log.d("MYAPP3: ", this.model == null ? "YES" : "NO");
-    }
-
-    @Override
-    public void onTapPlane(HitResult hitResult, Plane plane, MotionEvent motionEvent) {
-        if (model == null || viewRenderable == null) {
-            Toast.makeText(this, "Loading...", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // Create the Anchor.
-        Anchor anchor = hitResult.createAnchor();
-        AnchorNode anchorNode = new AnchorNode(anchor);
-        anchorNode.setParent(arFragment.getArSceneView().getScene());
-
-        // Create the transformable model and add it to the anchor.
-        TransformableNode model = new TransformableNode(arFragment.getTransformationSystem());
-        model.setParent(anchorNode);
-        model.setRenderable(this.model)
-                .animate(true).start();
-        model.setWorldPosition(vector);
-        model.select();
     }
 }
