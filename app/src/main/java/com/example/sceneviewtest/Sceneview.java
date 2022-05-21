@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MotionEvent;
+import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -17,6 +18,12 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentOnAttachListener;
 
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.StringRequest;
+import com.android.volley.toolbox.Volley;
 import com.google.ar.core.AugmentedImage;
 import com.google.ar.core.AugmentedImageDatabase;
 import com.google.ar.core.Config;
@@ -34,8 +41,16 @@ import com.google.ar.sceneform.ux.ArFragment;
 import com.google.ar.sceneform.ux.BaseArFragment;
 import com.google.ar.sceneform.ux.InstructionsController;
 import com.google.ar.sceneform.ux.TransformableNode;
+import com.google.gson.Gson;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.ref.WeakReference;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -43,19 +58,23 @@ import java.util.Map;
 
 public class Sceneview extends AppCompatActivity implements
         FragmentOnAttachListener,
-        BaseArFragment.OnSessionConfigurationListener {
+        BaseArFragment.OnSessionConfigurationListener,
+        Runnable {
 
     private final String TAG = "NOTICE";
     private final Map<String, Float> directionAngles = new HashMap<>();
+    private final List<Vector3> oldPositions = new ArrayList<>();
 
-    private boolean rabbitDetected = false;
+    private final Map<String, Boolean> imageDetectionStatus = new HashMap<>();
+    private final Map<String, Bitmap> bitmapImages = new HashMap<>();
     private AugmentedImageDatabase database;
+    private String detectedImage = null;
 
-    private ArrayList<Path> paths;
     private ArrayList<Location> locations;
     private Conversion conversions;
     private Path currentPosition;
     private String currentDirection;
+    private ArrayList<Path> generatedPath;
 
     private TextView arrowCoordinates;
 
@@ -68,9 +87,8 @@ public class Sceneview extends AppCompatActivity implements
     private TransformableNode node;
     private Camera camera;
 
-    private final List<Vector3> oldPositions = new ArrayList<>();
-
     private int counter = 0;
+    private int endLocation;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -78,19 +96,18 @@ public class Sceneview extends AppCompatActivity implements
         setContentView(R.layout.activity_sceneview);
 
         Intent intent = getIntent();
-        Bundle args = intent.getBundleExtra("PATHS");
-        paths = (ArrayList<Path>) args.getSerializable("PATHS_ARRAY");
-        if (paths.size() > 0) {
-            currentPosition = paths.get(0);
-            paths.remove(0);
-        }
+        Bundle args = intent.getBundleExtra("LOCATIONS");
+        generatedPath = new ArrayList<>();
 
         locations = (ArrayList<Location>) args.getSerializable("LOCATIONS_ARRAY");
+        endLocation = intent.getIntExtra("END_LOCATION", 0);
 
-        populateDirectionAngles();
-        updateCurrentDirection();
-        adjustDirectionAngles();
-        conversions = (Conversion) getIntent().getSerializableExtra("CONVERSIONS");
+//        populateDirectionAngles();
+//        updateCurrentDirection();
+//        adjustDirectionAngles();
+
+        Thread thread = new Thread(this);
+        thread.start();
 
         vector = new Vector3();
 
@@ -98,6 +115,23 @@ public class Sceneview extends AppCompatActivity implements
         arrowCoordinates = findViewById(R.id.arrowPosition);
 
         startSceneform(savedInstanceState);
+    }
+
+    @Override
+    public void run() {
+        try {
+            URL url;
+            for (Location location: locations) {
+                String filename = location.getPath();
+                url = new URL("http://192.168.1.15/navigation_api/public/qr_codes/" + filename);
+                Bitmap image = BitmapFactory.decodeStream(url.openStream());
+                filename = filename.replace(".png", "");
+                bitmapImages.put(filename, image);
+                imageDetectionStatus.put(filename, false);
+            }
+        } catch(IOException e) {
+            System.out.println(e);
+        }
     }
 
     @Override
@@ -169,17 +203,17 @@ public class Sceneview extends AppCompatActivity implements
 
     private float[] computeStep() {
         float xDifference = 0.0f;
-        if (currentPosition.getX_coord() > paths.get(0).getX_coord()) {
-            xDifference = currentPosition.getX_coord() - paths.get(0).getX_coord();
+        if (currentPosition.getX_coord() > generatedPath.get(0).getX_coord()) {
+            xDifference = currentPosition.getX_coord() - generatedPath.get(0).getX_coord();
         } else {
-            xDifference = paths.get(0).getX_coord() - currentPosition.getX_coord();
+            xDifference = generatedPath.get(0).getX_coord() - currentPosition.getX_coord();
         }
 
         float yDifference = 0.0f;
-        if (currentPosition.getY_coord() > paths.get(0).getY_coord()) {
-            yDifference = currentPosition.getY_coord() - paths.get(0).getY_coord();
+        if (currentPosition.getY_coord() > generatedPath.get(0).getY_coord()) {
+            yDifference = currentPosition.getY_coord() - generatedPath.get(0).getY_coord();
         } else {
-            yDifference = paths.get(0).getY_coord() - currentPosition.getY_coord();
+            yDifference = generatedPath.get(0).getY_coord() - currentPosition.getY_coord();
         }
 
         xDifference = conversions.getValue_two() * xDifference;
@@ -197,13 +231,13 @@ public class Sceneview extends AppCompatActivity implements
     private void updateCurrentDirection() {
         // Note: North = forward, South = backward, west = left, east = right
 
-        if (currentPosition.getX_coord() > paths.get(0).getX_coord()) {
+        if (currentPosition.getX_coord() > generatedPath.get(0).getX_coord()) {
             currentDirection = "west";
-        } else if (currentPosition.getX_coord() < paths.get(0).getX_coord()) {
+        } else if (currentPosition.getX_coord() < generatedPath.get(0).getX_coord()) {
             currentDirection = "east";
-        } else if (currentPosition.getY_coord() > paths.get(0).getY_coord()) {
+        } else if (currentPosition.getY_coord() > generatedPath.get(0).getY_coord()) {
             currentDirection = "north";
-        } else if (currentPosition.getY_coord() < paths.get(0).getY_coord()) {
+        } else if (currentPosition.getY_coord() < generatedPath.get(0).getY_coord()) {
             currentDirection = "south";
         }
     }
@@ -250,18 +284,17 @@ public class Sceneview extends AppCompatActivity implements
         if (session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)) {
             config.setDepthMode(Config.DepthMode.AUTOMATIC);
         }
+
         // Disable plane detection
         config.setPlaneFindingMode(Config.PlaneFindingMode.DISABLED);
 
-        // Images to be detected by our AR need to be added in AugmentedImageDatabase
-        // This is how database is created at runtime
-        // You can also prebuild database in you computer and load it directly (see: https://developers.google.com/ar/develop/java/augmented-images/guide#database)
-
         database = new AugmentedImageDatabase(session);
 
-        Bitmap rabbitImage = BitmapFactory.decodeResource(getResources(), R.drawable.rabbit);
+
         // Every image has to have its own unique String identifier
-        database.addImage("rabbit", rabbitImage);
+        for (String key: bitmapImages.keySet()) {
+            database.addImage(key, bitmapImages.get(key));
+        }
 
         config.setAugmentedImageDatabase(database);
 
@@ -272,14 +305,13 @@ public class Sceneview extends AppCompatActivity implements
     public void onAugmentedImageTrackingUpdate(AugmentedImage augmentedImage) {
         // If there are both images already detected, for better CPU usage we do not need scan for them
         counter++;
-
-        if (rabbitDetected && counter % 10 == 0) {
+        if (detectedImage != null && counter % 10 == 0) {
             arrowCoordinates.setText(node.getWorldPosition().toString());
 
 //            if (hasMoved(oldPositions.get(oldPositions.size()-1), camera.getLocalPosition(), node.getWorldPosition())) {
-//                if (paths.size() > 0) {
-//                    currentPosition = paths.get(0);
-//                    paths.remove(0);
+//                if (generatedPath.size() > 0) {
+//                    currentPosition = generatedPath.get(0);
+//                    generatedPath.remove(0);
 //                    updateCurrentDirection();
 //                    adjustDirectionAngles();
 //
@@ -292,52 +324,136 @@ public class Sceneview extends AppCompatActivity implements
 //            }
         }
 
-
-        if (augmentedImage.getTrackingState() == TrackingState.TRACKING
+        if (detectedImage == null && bitmapImages != null && augmentedImage.getTrackingState() == TrackingState.TRACKING
                 && augmentedImage.getTrackingMethod() == AugmentedImage.TrackingMethod.FULL_TRACKING) {
 
             // Setting anchor to the center of Augmented Image
             AnchorNode anchorNode = new AnchorNode(augmentedImage.createAnchor(augmentedImage.getCenterPose()));
 
-            // If rabbit model haven't been placed yet and detected image has String identifier of "rabbit"
-            // This is also example of model loading and placing at runtime
-            if (!rabbitDetected && augmentedImage.getName().equals("rabbit")) {
-                rabbitDetected = true;
-                Toast.makeText(this, "Rabbit tag detected", Toast.LENGTH_LONG).show();
+            for (String key: bitmapImages.keySet()) {
+                if (!imageDetectionStatus.get(key) && augmentedImage.getName().equals(key)) {
 
-                anchorNode.setWorldScale(new Vector3(0.01f, 0.01f, 0.01f));
-                arFragment.getArSceneView().getScene().addChild(anchorNode);
+                    imageDetectionStatus.put(key, true);
+                    detectedImage = key;
 
-                node = new TransformableNode(arFragment.getTransformationSystem());
-                node.setRenderable(this.model);
-                node.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1, 0), 90.0f));
-                anchorNode.addChild(node);
+                    String[] locationArray = key.split("_");
+                    getFinalPath(locationArray[1], String.valueOf(endLocation), anchorNode, key);
+//                    vector.set(0, -1f,-1f);
+//
+//                    parentNode = new AnchorNode();
+//                    parentNode.setParent(arFragment.getArSceneView().getScene());
+//                    parentNode.setWorldPosition(new Vector3(0, 0, 0));
+//
+//                    node = new TransformableNode(arFragment.getTransformationSystem());
+//                    node.setRenderable(this.model);
+//                    node.getScaleController().setMinScale(0.0f);
+//                    node.getScaleController().setMaxScale(3.0f);
+//                    node.setLocalScale(new Vector3(0.05f, 0.05f, 0.05f));
 
-//                vector.set(0, -1f,-1f);
+                    Float currentAngle = directionAngles.get(currentDirection);
+//                    node.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1, 0), currentAngle == null ? 180.0f : currentAngle));
 //
-//                parentNode = new AnchorNode();
-//                parentNode.setParent(arFragment.getArSceneView().getScene());
-//                parentNode.setWorldPosition(new Vector3(0, 0, 0));
-//
-//                node = new TransformableNode(arFragment.getTransformationSystem());
-//                node.setRenderable(this.model);
-//                node.getScaleController().setMinScale(0.0f);
-//                node.getScaleController().setMaxScale(3.0f);
-//                node.setLocalScale(new Vector3(0.05f, 0.05f, 0.05f));
-//
-                Float currentAngle = directionAngles.get(currentDirection);
-//                node.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1, 0), currentAngle == null ? 180.0f : currentAngle));
-//
-//                node.setParent(parentNode);
-//                node.setWorldPosition(vector);
+//                    node.setParent(parentNode);
+//                    node.setWorldPosition(vector);
 
-                oldPositions.add(camera.getLocalPosition());
+                    oldPositions.add(camera.getLocalPosition());
+                }
             }
         }
-        if (rabbitDetected) {
+        if (detectedImage != null) {
             arFragment.getInstructionsController().setEnabled(
                     InstructionsController.TYPE_AUGMENTED_IMAGE_SCAN, false);
         }
+    }
+
+    public void getFinalPath(String start_location, String end_location, AnchorNode anchorNode, String key) {
+        Map<String, String> parameters = new HashMap<>();
+        parameters.put("start_location", start_location);
+        parameters.put("end_location", end_location);
+
+        volleyAPI("getPaths", parameters, anchorNode, key);
+    }
+
+
+    private void getPaths(HashMap allData, AnchorNode anchorNode, String key) throws Exception {
+        ArrayList paths = (ArrayList) allData.get("paths");
+        conversions = new Gson().fromJson(allData.get("conversions").toString(), Conversion.class);
+
+        if (paths != null) {
+            Log.d(TAG, "getPaths");
+            for (Object coordinate: paths) {
+                Path path = new Gson().fromJson(coordinate.toString(), Path.class);
+                generatedPath.add(path);
+            }
+
+            displayFirstArrow(anchorNode, key);
+        } else {
+            Log.d(TAG, "null");
+            Toast.makeText(Sceneview.this, "No generatedPath possible from source to destination.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void displayFirstArrow(AnchorNode anchorNode, String key) {
+        Log.d(TAG, "displayFirstArrow");
+        Toast.makeText(this, key + " tag detected", Toast.LENGTH_LONG).show();
+
+        anchorNode.setWorldScale(new Vector3(0.01f, 0.01f, 0.01f));
+        arFragment.getArSceneView().getScene().addChild(anchorNode);
+
+        node = new TransformableNode(arFragment.getTransformationSystem());
+        node.setRenderable(this.model);
+        node.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1, 0), 90.0f));
+        anchorNode.addChild(node);
+
+    }
+
+    private void volleyAPI(String type, Map<String, String> parameters, AnchorNode anchorNode, String key) {
+        // Instantiate the RequestQueue.
+        RequestQueue queue = Volley.newRequestQueue(this);
+        String url = Constants.API_LINKS.get(type);
+
+        // Request a string response from the provided URL.
+        StringRequest stringRequest = new StringRequest(Request.Method.POST, url,
+                new Response.Listener<String>() {
+                    @Override
+                    public void onResponse(String response) {
+                        JSONObject result = null;
+                        try {
+                            result = new JSONObject(response);
+                            HashMap allData = new Gson().fromJson(result.toString(), HashMap.class);
+
+                            getPaths(allData, anchorNode, key);
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                Log.d(TAG, "Failed with error msg:\t" + error.getMessage());
+                Log.d(TAG, "Error StackTrace: \t" + error.getStackTrace());
+                try {
+                    byte[] htmlBodyBytes = error.networkResponse.data;
+                    Log.e(TAG, new String(htmlBodyBytes), error);
+                } catch (NullPointerException e) {
+                    e.printStackTrace();
+                }
+            }
+        }) {@Override
+        public Map<String, String> getParams() {
+            Map<String, String> params = new HashMap<>();
+
+            for (String key: parameters.keySet()) {
+                params.put(key, parameters.get(key));
+            }
+            return params;
+        }
+        };
+
+        // Add the request to the RequestQueue.
+        queue.add(stringRequest);
     }
 
     public void loadModels() {

@@ -33,13 +33,12 @@ import java.util.Map;
 public class MainActivity extends AppCompatActivity {
 
     private final String TAG = "NOTICE";
-    private ArrayList<Path> generatedPath;
-    private Conversion conversions;
 
     private ArrayList<Location> locations;
 
     private ArrayAdapter<Location> adapter;
     private Spinner endLocations;
+    int endLocation;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,18 +46,9 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         locations = new ArrayList<>();
-        generatedPath = new ArrayList<>();
         endLocations = findViewById(R.id.end_locations_spinner);
 
         volleyAPI("getLocations");
-    }
-
-    public void getFinalPath(View view) {
-        Map<String, String> parameters = new HashMap<>();
-        parameters.put("start_location", "1");
-        parameters.put("end_location", "3");
-
-        volleyAPI("getPaths", parameters);
     }
 
     private void initializeUI() {
@@ -72,6 +62,7 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
                     Location location = (Location) adapterView.getItemAtPosition(i);
+                    endLocation = location.getId();
                 }
 
                 @Override
@@ -96,89 +87,16 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void getPaths(HashMap allData) {
-        ArrayList paths = (ArrayList) allData.get("paths");
-        conversions = new Gson().fromJson(allData.get("conversions").toString(), Conversion.class);
-
-        if (paths != null) {
-            for (Object coordinate: paths) {
-                Path path = new Gson().fromJson(coordinate.toString(), Path.class);
-                generatedPath.add(path);
-            }
-            startSceneform();
-        } else {
-            Toast.makeText(MainActivity.this, "No paths possible from source to destination.", Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void startSceneform() {
+    public void startSceneform(View view) {
         Intent intent = new Intent(MainActivity.this, Sceneview.class);
         Bundle args = new Bundle();
-        args.putSerializable("PATHS_ARRAY", (Serializable) generatedPath);
         args.putSerializable("LOCATIONS_ARRAY", (Serializable) locations);
-        intent.putExtra("PATHS", args);
-
-        if (conversions != null) {
-            intent.putExtra("CONVERSIONS", conversions);
-        }
+        intent.putExtra("LOCATIONS", args);
+        intent.putExtra("END_LOCATION", endLocation);
 
         startActivity(intent);
     }
 
-    private void volleyAPI(String type, Map<String, String> parameters) {
-        // Instantiate the RequestQueue.
-        RequestQueue queue = Volley.newRequestQueue(this);
-        String url = Constants.API_LINKS.get(type);
-
-        // Request a string response from the provided URL.
-        StringRequest stringRequest = new StringRequest(Request.Method.POST, url,
-                new Response.Listener<String>() {
-                    @Override
-                    public void onResponse(String response) {
-                        JSONObject result = null;
-                        try {
-                            result = new JSONObject(response);
-                            HashMap allData = new Gson().fromJson(result.toString(), HashMap.class);
-
-                            switch (type) {
-                                case "getPaths":
-                                    getPaths(allData);
-                                    break;
-                                case "getLocations":
-                                    getLocations(allData);
-                                    break;
-                            }
-
-                        } catch (JSONException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }, new Response.ErrorListener() {
-            @Override
-            public void onErrorResponse(VolleyError error) {
-                Log.d(TAG, "Failed with error msg:\t" + error.getMessage());
-                Log.d(TAG, "Error StackTrace: \t" + error.getStackTrace());
-                try {
-                    byte[] htmlBodyBytes = error.networkResponse.data;
-                    Log.e(TAG, new String(htmlBodyBytes), error);
-                } catch (NullPointerException e) {
-                    e.printStackTrace();
-                }
-            }
-        }) {@Override
-        public Map<String, String> getParams() {
-            Map<String, String> params = new HashMap<>();
-
-            for (String key: parameters.keySet()) {
-                params.put(key, parameters.get(key));
-            }
-            return params;
-        }
-        };
-
-        // Add the request to the RequestQueue.
-        queue.add(stringRequest);
-    }
 
     private void volleyAPI(String type) {
         // Instantiate the RequestQueue.
@@ -194,15 +112,7 @@ public class MainActivity extends AppCompatActivity {
                         try {
                             result = new JSONObject(response);
                             HashMap allData = new Gson().fromJson(result.toString(), HashMap.class);
-
-                            switch (type) {
-                                case "getPaths":
-                                    getPaths(allData);
-                                    break;
-                                case "getLocations":
-                                    getLocations(allData);
-                                    break;
-                            }
+                            getLocations(allData);
 
                         } catch (JSONException e) {
                             e.printStackTrace();
