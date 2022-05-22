@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.nfc.Tag;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -102,10 +103,6 @@ public class Sceneview extends AppCompatActivity implements
         locations = (ArrayList<Location>) args.getSerializable("LOCATIONS_ARRAY");
         endLocation = intent.getIntExtra("END_LOCATION", 0);
 
-//        populateDirectionAngles();
-//        updateCurrentDirection();
-//        adjustDirectionAngles();
-
         Thread thread = new Thread(this);
         thread.start();
 
@@ -123,7 +120,8 @@ public class Sceneview extends AppCompatActivity implements
             URL url;
             for (Location location: locations) {
                 String filename = location.getPath();
-                url = new URL("http://192.168.1.15/navigation_api/public/qr_codes/" + filename);
+                Log.d(TAG, Constants.baseURL + Constants.markerLocation + filename);
+                url = new URL(Constants.baseURL + Constants.markerLocation + filename);
                 Bitmap image = BitmapFactory.decodeStream(url.openStream());
                 filename = filename.replace(".png", "");
                 bitmapImages.put(filename, image);
@@ -218,8 +216,6 @@ public class Sceneview extends AppCompatActivity implements
 
         xDifference = conversions.getValue_two() * xDifference;
         yDifference = conversions.getValue_two() * yDifference;
-        Log.d(TAG, "xDiff: " + xDifference);
-        Log.d(TAG, "yDiff: " + yDifference);
 
         float[] steps = {xDifference, yDifference};
         if (currentDirection.equals("east") || currentDirection.equals("west"))
@@ -305,23 +301,23 @@ public class Sceneview extends AppCompatActivity implements
     public void onAugmentedImageTrackingUpdate(AugmentedImage augmentedImage) {
         // If there are both images already detected, for better CPU usage we do not need scan for them
         counter++;
-        if (detectedImage != null && counter % 10 == 0) {
+        if (detectedImage != null && node != null && counter % 10 == 0) {
             arrowCoordinates.setText(node.getWorldPosition().toString());
 
-//            if (hasMoved(oldPositions.get(oldPositions.size()-1), camera.getLocalPosition(), node.getWorldPosition())) {
-//                if (generatedPath.size() > 0) {
-//                    currentPosition = generatedPath.get(0);
-//                    generatedPath.remove(0);
-//                    updateCurrentDirection();
-//                    adjustDirectionAngles();
-//
-//                    Vector3 oldNodePosition = node.getWorldPosition();
-//                    removeOldArrow();
-//                    createNewArrow(oldNodePosition);
-//                } else {
-//                    Log.d(TAG, "Arrived!! Hooray!!");
-//                }
-//            }
+            if (hasMoved(oldPositions.get(oldPositions.size()-1), camera.getLocalPosition(), node.getWorldPosition())) {
+                if (generatedPath.size() > 0) {
+                    currentPosition = generatedPath.get(0);
+                    generatedPath.remove(0);
+                    updateCurrentDirection();
+                    adjustDirectionAngles();
+
+                    Vector3 oldNodePosition = node.getWorldPosition();
+                    removeOldArrow();
+                    createNewArrow(oldNodePosition);
+                } else {
+                    Log.d(TAG, "Arrived!! Hooray!!");
+                }
+            }
         }
 
         if (detectedImage == null && bitmapImages != null && augmentedImage.getTrackingState() == TrackingState.TRACKING
@@ -338,28 +334,10 @@ public class Sceneview extends AppCompatActivity implements
 
                     String[] locationArray = key.split("_");
                     getFinalPath(locationArray[1], String.valueOf(endLocation), anchorNode, key);
-//                    vector.set(0, -1f,-1f);
-//
-//                    parentNode = new AnchorNode();
-//                    parentNode.setParent(arFragment.getArSceneView().getScene());
-//                    parentNode.setWorldPosition(new Vector3(0, 0, 0));
-//
-//                    node = new TransformableNode(arFragment.getTransformationSystem());
-//                    node.setRenderable(this.model);
-//                    node.getScaleController().setMinScale(0.0f);
-//                    node.getScaleController().setMaxScale(3.0f);
-//                    node.setLocalScale(new Vector3(0.05f, 0.05f, 0.05f));
-
-                    Float currentAngle = directionAngles.get(currentDirection);
-//                    node.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1, 0), currentAngle == null ? 180.0f : currentAngle));
-//
-//                    node.setParent(parentNode);
-//                    node.setWorldPosition(vector);
-
-                    oldPositions.add(camera.getLocalPosition());
                 }
             }
         }
+        Log.d(TAG, detectedImage == null ? "null": detectedImage);
         if (detectedImage != null) {
             arFragment.getInstructionsController().setEnabled(
                     InstructionsController.TYPE_AUGMENTED_IMAGE_SCAN, false);
@@ -374,16 +352,24 @@ public class Sceneview extends AppCompatActivity implements
         volleyAPI("getPaths", parameters, anchorNode, key);
     }
 
-
     private void getPaths(HashMap allData, AnchorNode anchorNode, String key) throws Exception {
         ArrayList paths = (ArrayList) allData.get("paths");
         conversions = new Gson().fromJson(allData.get("conversions").toString(), Conversion.class);
 
         if (paths != null) {
-            Log.d(TAG, "getPaths");
             for (Object coordinate: paths) {
                 Path path = new Gson().fromJson(coordinate.toString(), Path.class);
                 generatedPath.add(path);
+            }
+
+            if (generatedPath.size() > 0) {
+                currentPosition = generatedPath.get(0);
+                generatedPath.remove(0);
+
+                populateDirectionAngles();
+                updateCurrentDirection();
+                adjustDirectionAngles();
+                oldPositions.add(camera.getLocalPosition());
             }
 
             displayFirstArrow(anchorNode, key);
@@ -402,9 +388,8 @@ public class Sceneview extends AppCompatActivity implements
 
         node = new TransformableNode(arFragment.getTransformationSystem());
         node.setRenderable(this.model);
-        node.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1, 0), 90.0f));
+        node.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1, 0), directionAngles.get(currentDirection)));
         anchorNode.addChild(node);
-
     }
 
     private void volleyAPI(String type, Map<String, String> parameters, AnchorNode anchorNode, String key) {
