@@ -64,6 +64,8 @@ public class Sceneview extends AppCompatActivity implements
         BaseArFragment.OnSessionConfigurationListener,
         Runnable {
 
+    private int moveCounter = 0;
+
     private final String TAG = "NOTICE";
     private final Map<String, Float> directionAngles = new HashMap<>();
     private final List<Vector3> oldPositions = new ArrayList<>();
@@ -80,6 +82,7 @@ public class Sceneview extends AppCompatActivity implements
     private ArrayList<Path> generatedPath;
 
     private TextView arrowCoordinates;
+    private TextView stepsView;
 
     private ArFragment arFragment;
     private Renderable model;
@@ -112,6 +115,7 @@ public class Sceneview extends AppCompatActivity implements
 
         getSupportFragmentManager().addFragmentOnAttachListener(this);
         arrowCoordinates = findViewById(R.id.arrowPosition);
+        stepsView = findViewById(R.id.steps);
 
         startSceneform(savedInstanceState);
     }
@@ -141,38 +145,10 @@ public class Sceneview extends AppCompatActivity implements
     }
 
     private void populateDirectionAngles() {
-        directionAngles.put("north", 180.0f);
-        directionAngles.put("south", 0.0f);
+        directionAngles.put("north", 0.0f);
+        directionAngles.put("south", 180.0f);
         directionAngles.put("west", 90.0f);
         directionAngles.put("east", 270.0f);
-    }
-
-    private void adjustDirectionAngles() {
-        if (directionAngles != null && !currentDirection.equals("")) {
-            switch (currentDirection) {
-                case "north":
-                    populateDirectionAngles();
-                    break;
-                case "south":
-                    directionAngles.put("south", 180.0f);
-                    directionAngles.put("north", 0.0f);
-                    directionAngles.put("west", 270.0f);
-                    directionAngles.put("east", 90.0f);
-                    break;
-                case "east":
-                    directionAngles.put("south", 270.0f);
-                    directionAngles.put("north", 90.0f);
-                    directionAngles.put("west", 0.0f);
-                    directionAngles.put("east", 180.0f);
-                    break;
-                case "west":
-                    directionAngles.put("south", 90.0f);
-                    directionAngles.put("north", 270.0f);
-                    directionAngles.put("west", 180.0f);
-                    directionAngles.put("east", 0.0f);
-                    break;
-            }
-        }
     }
 
     private void createNewArrow(Vector3 oldNodePosition) {
@@ -183,40 +159,25 @@ public class Sceneview extends AppCompatActivity implements
 
             vector.set(newXPosition, oldNodePosition.y, newZPosition);
 
-            node = new TransformableNode(arFragment.getTransformationSystem());
-            node.setRenderable(this.model);
-
             float angle = ((directionAngles != null && directionAngles.get(currentDirection) != null) ?
                     directionAngles.get(currentDirection) : 0.0f);
+
+            stepsView.setText("Angle = " + angle + "\n" + "newXposition = " + newXPosition + " newZposition = " + newZPosition + "\nMove Counter = " + moveCounter + "\nCurrent Position: x = " + currentPosition.getX_coord() + "-- y = " + currentPosition.getY_coord() + "\nCurrent Direction: " + currentDirection);
+            moveCounter++;
+
             node.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1, 0), angle));
-            node.setWorldPosition(vector);
-            node.setParent(anchorNode);
+            node.setLocalPosition(vector);
         }
     }
 
     private float[] computeStep() {
-        float xDifference = 0.0f;
-        if (currentPosition.getX_coord() > generatedPath.get(0).getX_coord()) {
-            xDifference = currentPosition.getX_coord() - generatedPath.get(0).getX_coord();
-        } else {
-            xDifference = generatedPath.get(0).getX_coord() - currentPosition.getX_coord();
-        }
-
-        float yDifference = 0.0f;
-        if (currentPosition.getY_coord() > generatedPath.get(0).getY_coord()) {
-            yDifference = currentPosition.getY_coord() - generatedPath.get(0).getY_coord();
-        } else {
-            yDifference = generatedPath.get(0).getY_coord() - currentPosition.getY_coord();
-        }
+        float xDifference = generatedPath.get(0).getX_coord() - currentPosition.getX_coord();
+        float yDifference = generatedPath.get(0).getY_coord() - currentPosition.getY_coord();
 
         xDifference = conversions.getValue_two() * xDifference;
         yDifference = conversions.getValue_two() * yDifference;
 
-        float[] steps = {xDifference, yDifference};
-        if (currentDirection.equals("east") || currentDirection.equals("west"))
-            steps = new float[]{yDifference, xDifference};
-
-        return steps;
+        return new float[]{xDifference, yDifference};
     }
 
     private void updateCurrentDirection() {
@@ -294,24 +255,24 @@ public class Sceneview extends AppCompatActivity implements
     public void onAugmentedImageTrackingUpdate(AugmentedImage augmentedImage) {
         // If there are both images already detected, for better CPU usage we do not need scan for them
         counter++;
+        Log.d(TAG, detectedImage == null ? "NULL": detectedImage);
         if (detectedImage != null) {
-            if (node != null && counter % 10 == 0) {
+            if (node != null && counter % 2 == 0) {
                 arrowCoordinates.setText(node.getWorldPosition().toString());
 
-                if (hasMoved(oldPositions.get(oldPositions.size()-1), camera.getLocalPosition(), node.getWorldPosition())) {
-                    Log.d(TAG, "has moved");
-                    if (generatedPath.size() > 0) {
+                if (generatedPath.size() > 1) {
+                    if (hasMoved(oldPositions.get(oldPositions.size()-1), camera.getLocalPosition(), node.getWorldPosition())) {
+                        Log.d(TAG, "has moved");
+
                         currentPosition = generatedPath.get(0);
                         generatedPath.remove(0);
                         updateCurrentDirection();
-                        adjustDirectionAngles();
 
                         Vector3 oldNodePosition = node.getLocalPosition();
-                        removeOldArrow();
                         createNewArrow(oldNodePosition);
-                    } else {
-                        Log.d(TAG, "Arrived!! Hooray!!");
                     }
+                } else {
+                    stepsView.setText("VERY NICE!! YOU HAVE ARRIVED!!!");
                 }
                 Log.d(TAG, "has not moved");
             }
@@ -368,7 +329,6 @@ public class Sceneview extends AppCompatActivity implements
 
                 populateDirectionAngles();
                 updateCurrentDirection();
-                adjustDirectionAngles();
                 oldPositions.add(camera.getLocalPosition());
             }
 
@@ -379,14 +339,12 @@ public class Sceneview extends AppCompatActivity implements
     }
 
     private void displayFirstArrow(AnchorNode anchorNode, String key) {
-        Toast.makeText(this, key + " tag detected", Toast.LENGTH_LONG).show();
-
         anchorNode.setWorldScale(new Vector3(0.03f, 0.03f, 0.03f));
         arFragment.getArSceneView().getScene().addChild(anchorNode);
 
         node = new TransformableNode(arFragment.getTransformationSystem());
         node.setRenderable(this.model);
-        node.setLocalPosition(new Vector3(0,0,-4));
+        node.setLocalPosition(new Vector3(0,0,0));
         node.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1, 0), directionAngles.get(currentDirection)));
         anchorNode.addChild(node);
     }
