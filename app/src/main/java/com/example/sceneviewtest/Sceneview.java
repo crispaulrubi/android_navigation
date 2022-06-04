@@ -95,6 +95,9 @@ public class Sceneview extends AppCompatActivity implements
 
     private int counter = 0;
     private int endLocation;
+    private int roleID;
+    private float pixelStepCounter = 0;
+    private float pixelStepConverter = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -107,6 +110,7 @@ public class Sceneview extends AppCompatActivity implements
 
         locations = (ArrayList<Location>) args.getSerializable("LOCATIONS_ARRAY");
         endLocation = intent.getIntExtra("END_LOCATION", 0);
+        roleID = intent.getIntExtra("ROLE_ID", 0);
 
         Thread thread = new Thread(this);
         thread.start();
@@ -269,7 +273,13 @@ public class Sceneview extends AppCompatActivity implements
                         updateCurrentDirection();
 
                         Vector3 oldNodePosition = node.getLocalPosition();
-                        createNewArrow(oldNodePosition);
+
+                        pixelStepCounter++;
+
+                        if (pixelStepCounter >= pixelStepConverter || generatedPath.size() == 1) {
+                            pixelStepCounter = 0;
+                            createNewArrow(oldNodePosition);
+                        }
                     }
                 } else {
                     stepsView.setText("VERY NICE!! YOU HAVE ARRIVED!!!");
@@ -307,8 +317,7 @@ public class Sceneview extends AppCompatActivity implements
         Map<String, String> parameters = new HashMap<>();
         parameters.put("start_location", start_location);
         parameters.put("end_location", end_location);
-
-        Log.d(TAG, start_location + " : " + end_location);
+        parameters.put("role", String.valueOf(roleID));
 
         volleyAPI("getPaths", parameters, anchorNode, key);
     }
@@ -316,6 +325,7 @@ public class Sceneview extends AppCompatActivity implements
     private void getPaths(HashMap allData, AnchorNode anchorNode, String key) throws Exception {
         ArrayList paths = (ArrayList) allData.get("paths");
         conversions = new Gson().fromJson(allData.get("conversions").toString(), Conversion.class);
+        pixelStepConverter = conversions.getValue_one();
 
         if (paths != null) {
             for (Object coordinate: paths) {

@@ -1,14 +1,12 @@
 package com.example.sceneviewtest;
 
 import android.content.Intent;
-import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -23,22 +21,26 @@ import com.google.gson.Gson;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.w3c.dom.Text;
 
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
     private final String TAG = "NOTICE";
 
     private ArrayList<Location> locations;
+    private ArrayList<Role> roles;
 
     private ArrayAdapter<Location> adapter;
+    private ArrayAdapter<Role> roleAdapter;
+
     private Spinner endLocations;
-    int endLocation;
+    private Spinner roleSpinner;
+
+    private int endLocation = 0;
+    private int roleID = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,7 +48,9 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         locations = new ArrayList<>();
-        endLocations = findViewById(R.id.end_locations_spinner);
+        roles = new ArrayList<>();
+        endLocations = findViewById(R.id.end_location_spinner);
+        roleSpinner = findViewById(R.id.role_spinner);
 
         volleyAPI("getLocations");
     }
@@ -71,10 +75,40 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }
+
+        if (roles != null) {
+            roleAdapter = new ArrayAdapter<Role>(MainActivity.this, android.R.layout.simple_spinner_dropdown_item, roles);
+            roleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+
+            roleSpinner.setAdapter(roleAdapter);
+            roleAdapter.notifyDataSetChanged();
+            roleSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+                    Role role = (Role) adapterView.getItemAtPosition(i);
+                    roleID = role.getId();
+                }
+
+                @Override
+                public void onNothingSelected(AdapterView<?> adapterView) {
+                    Log.d(TAG, "Nothing");
+                }
+            });
+        }
     }
 
     private void getLocations(HashMap allData) {
         ArrayList unformattedLocations = (ArrayList) allData.get("locations");
+        ArrayList unformattedRoles = (ArrayList) allData.get("roles");
+
+        if (unformattedRoles != null) {
+            for (Object roleDetails: unformattedRoles) {
+                Role role = new Gson().fromJson(roleDetails.toString(), Role.class);
+                roles.add(role);
+            }
+        } else {
+            Toast.makeText(MainActivity.this, "No roles found.", Toast.LENGTH_LONG).show();
+        }
 
         if (unformattedLocations != null) {
             for (Object locationDetails: unformattedLocations) {
@@ -88,13 +122,16 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void startSceneform(View view) {
-        Intent intent = new Intent(MainActivity.this, Sceneview.class);
-        Bundle args = new Bundle();
-        args.putSerializable("LOCATIONS_ARRAY", (Serializable) locations);
-        intent.putExtra("LOCATIONS", args);
-        intent.putExtra("END_LOCATION", endLocation);
+        if (endLocation != 0 && roleID != 0) {
+            Intent intent = new Intent(MainActivity.this, Sceneview.class);
+            Bundle args = new Bundle();
+            args.putSerializable("LOCATIONS_ARRAY", (Serializable) locations);
+            intent.putExtra("LOCATIONS", args);
+            intent.putExtra("END_LOCATION", endLocation);
+            intent.putExtra("ROLE_ID", roleID);
 
-        startActivity(intent);
+            startActivity(intent);
+        }
     }
 
 
