@@ -3,13 +3,8 @@ package com.example.sceneviewtest;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.net.Uri;
-import android.nfc.Tag;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.MotionEvent;
-import android.view.View;
-import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -48,9 +43,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.ref.WeakReference;
-import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -389,6 +382,7 @@ public class Sceneview extends AppCompatActivity implements
                 try {
                     byte[] htmlBodyBytes = error.networkResponse.data;
                     Log.e(TAG, new String(htmlBodyBytes), error);
+                    Toast.makeText(Sceneview.this, "No path for the chosen location and role.", Toast.LENGTH_LONG).show();
                 } catch (NullPointerException e) {
                     e.printStackTrace();
                 }
