@@ -10,6 +10,7 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentOnAttachListener;
@@ -275,6 +276,8 @@ public class Sceneview extends AppCompatActivity implements
                         }
                     }
                 } else {
+                    stepsView.setTextColor(ContextCompat.getColor(Sceneview.this, R.color.purple_200));
+                    stepsView.setTextSize(30);
                     stepsView.setText("VERY NICE!! YOU HAVE ARRIVED!!!");
                 }
                 Log.d(TAG, "has not moved");
