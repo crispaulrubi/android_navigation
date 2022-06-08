@@ -5,6 +5,8 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -75,7 +77,6 @@ public class Sceneview extends AppCompatActivity implements
     private String currentDirection;
     private ArrayList<Path> generatedPath;
 
-    private TextView arrowCoordinates;
     private TextView stepsView;
 
     private ArFragment arFragment;
@@ -92,6 +93,8 @@ public class Sceneview extends AppCompatActivity implements
     private int roleID;
     private float pixelStepCounter = 0;
     private float pixelStepConverter = 0;
+
+    private Button renav;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -112,8 +115,16 @@ public class Sceneview extends AppCompatActivity implements
         vector = new Vector3();
 
         getSupportFragmentManager().addFragmentOnAttachListener(this);
-        arrowCoordinates = findViewById(R.id.arrowPosition);
         stepsView = findViewById(R.id.steps);
+
+        renav = findViewById(R.id.renav);
+        renav.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                renav.setVisibility(View.GONE);
+                finish();
+            }
+        });
 
         startSceneform(savedInstanceState);
     }
@@ -255,9 +266,8 @@ public class Sceneview extends AppCompatActivity implements
         counter++;
         Log.d(TAG, detectedImage == null ? "NULL": detectedImage);
         if (detectedImage != null) {
+            finish();
             if (node != null && counter % 2 == 0) {
-                arrowCoordinates.setText(node.getWorldPosition().toString());
-
                 if (generatedPath.size() > 1) {
                     if (hasMoved(oldPositions.get(oldPositions.size()-1), camera.getLocalPosition(), node.getWorldPosition())) {
                         Log.d(TAG, "has moved");
@@ -279,6 +289,7 @@ public class Sceneview extends AppCompatActivity implements
                     stepsView.setTextColor(ContextCompat.getColor(Sceneview.this, R.color.purple_200));
                     stepsView.setTextSize(30);
                     stepsView.setText("VERY NICE!! YOU HAVE ARRIVED!!!");
+                    renav.setVisibility(View.VISIBLE);
                 }
                 Log.d(TAG, "has not moved");
             }
